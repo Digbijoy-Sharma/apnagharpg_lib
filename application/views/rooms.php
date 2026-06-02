@@ -1,0 +1,125 @@
+<!-- begin #content -->
+<div id="content" class="content">
+    <!-- begin breadcrumb -->
+    <ol class="breadcrumb pull-right">
+        <li class="breadcrumb-item"><a href="<?php echo base_url(); ?>"><?php echo $this->lang->line('dashboard'); ?></a></li>
+        <li class="breadcrumb-item active"><?php echo $this->lang->line('rooms'); ?></li>
+    </ol>
+    <!-- end breadcrumb -->
+    <!-- begin page-header -->
+    <h1 class="page-header">
+        <a href="<?php echo base_url(); ?>add_room">
+            <button type="button" class="btn btn-inverse"><i class="fa fa-plus"></i> Add Seat</button>
+        </a>
+        <a href="<?php echo base_url(); ?>seat_occupancy_chart" class="m-l-10">
+            <button type="button" class="btn btn-primary"><i class="fa fa-calendar-alt"></i> Occupancy Chart</button>
+        </a>
+    </h1>
+    <!-- end page-header -->
+
+    <!-- begin row -->
+    <div class="row">
+        <!-- begin col-12 -->
+        <div class="col-lg-12">
+            <!-- begin panel -->
+            <div class="panel panel-inverse">
+                <!-- begin panel-body -->
+                <div class="panel-body">
+                    <table id="data-table-buttons" class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th width="1%">#</th>
+                                <th class="text-nowrap">Study Area</th>
+                                <th class="text-nowrap">Seat No</th>
+                                <th class="text-nowrap">Per Day</th>
+                                <th class="text-nowrap">Monthly</th>
+                                <th class="text-nowrap">3 Month</th>
+                                <th class="text-nowrap">6 Month</th>
+                                <th class="text-nowrap">12 Month</th>
+                                <th class="text-nowrap">Status</th>
+                                <th class="text-nowrap">Floor / Section</th>
+                                <th class="text-nowrap">Remarks</th>
+                                <th class="text-nowrap">Updated On</th>
+                                <th class="text-nowrap">Updated By</th>
+                                <th class="text-nowrap">Options</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $count = 1;
+                            $this->db->order_by('timestamp', 'desc');
+                            $rooms = $this->db->get('room')->result_array();
+                            foreach ($rooms as $room) :
+                            ?>
+                                <tr>
+                                    <td width="1%"><?php echo $count++; ?></td>
+                                    <td><?php echo html_escape($room['roomnumber']); ?></td>
+                                    <td><?php echo html_escape($room['room_number']); ?></td>
+                                    <td><?php echo number_format((float) $room['daily_rent'], 2); ?></td>
+                                    <td><?php echo number_format((float) $room['monthly_rent'], 2); ?></td>
+                                    <td><?php echo number_format((float) (isset($room['quarterly_price']) ? $room['quarterly_price'] : 0), 2); ?></td>
+                                    <td><?php echo number_format((float) (isset($room['half_yearly_price']) ? $room['half_yearly_price'] : 0), 2); ?></td>
+                                    <td><?php echo number_format((float) (isset($room['yearly_price']) ? $room['yearly_price'] : 0), 2); ?></td>
+                                    <td>
+                                        <?php
+                                        if ($room['status'])
+                                            echo '<span class="badge badge-primary">Occupied</span>';
+                                        else
+                                            echo '<span class="badge badge-warning">Available</span>';
+										?>
+                                    </td>
+                                    <td><?php echo $room['floor'] ? html_escape($room['floor']) : 'N/A'; ?></td>
+                                    <td><?php echo $room['remarks'] ? html_escape($room['remarks']) : 'N/A'; ?></td>
+                                    <td><?php echo date('d M, Y', $room['timestamp']); ?></td>
+                                    <td>
+                                        <?php
+                                        $user_type =  $this->db->get_where('user', array('user_id' => $room['updated_by']))->row()->user_type;
+                                        if ($user_type == 1) {
+                                            echo 'Admin';
+                                        } else {
+                                            $person_id = $this->db->get_where('user', array('user_id' => $room['updated_by']))->row()->person_id;
+                                            echo html_escape($this->db->get_where('staff', array('staff_id' => $person_id))->row()->name);
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-white btn-xs"><?php echo $this->lang->line('action'); ?></button>
+                                            <button type="button" class="btn btn-white btn-xs dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <span class="sr-only">Toggle Dropdown</span>
+                                            </button>
+                                            <div class="dropdown-menu dropdown-menu-right">
+                                                <a class="dropdown-item" href="javascript:;" onclick="showAjaxModal('<?php echo base_url(); ?>modal/popup/modal_edit_room/<?php echo $room['room_id']; ?>');">
+                                                <?php echo $this->lang->line('edit'); ?>
+                                                </a>
+                                                <?php if ($room['status']) : ?>
+                                                    <a class="dropdown-item" href="javascript:;" onclick="vacant_modal('<?php echo base_url(); ?>rooms/vacant/<?php echo $room['room_id']; ?>');">
+                                                    Mark Seat Available
+                                                    </a>
+                                                <?php endif; ?>
+                                                <?php if (!$room['status']) : ?>
+                                                    <a class="dropdown-item" href="javascript:;" onclick="showAjaxModal('<?php echo base_url(); ?>modal/popup/modal_assign_room_to_tenant/<?php echo $room['room_id']; ?>');">
+                                                    Assign Student
+                                                    </a>
+                                                    <div class="dropdown-divider"></div>
+                                                    <a class="dropdown-item" href="javascript:;" onclick="confirm_modal('<?php echo base_url(); ?>rooms/remove/<?php echo $room['room_id']; ?>');">
+                                                    <?php echo $this->lang->line('remove'); ?>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- end panel-body -->
+            </div>
+            <!-- end panel -->
+        </div>
+        <!-- end col-12 -->
+    </div>
+    <!-- end row -->
+</div>
+<!-- end #content -->
