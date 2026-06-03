@@ -74,7 +74,7 @@
                                     <?php $room = $tenant['room_id'] ? $this->db->get_where('room', array('room_id' => $tenant['room_id']))->row() : null; ?>
                                     <td><?php echo $room ? html_escape($room->roomnumber) . ' -> Seat ' . html_escape($room->room_number) : 'N/A'; ?></td>
                                     <?php $shift = !empty($tenant['shift_id']) ? $this->db->get_where('study_shift', array('shift_id' => $tenant['shift_id']))->row() : null; ?>
-                                    <td><?php echo $shift ? html_escape($shift->shift_name) : 'N/A'; ?></td>
+                                    <td><?php echo $shift ? html_escape($shift->shift_name . ' (' . $shift->timing_label . ')') : 'N/A'; ?></td>
                                     <td>
                                         <?php
                                         $plan_labels = array(

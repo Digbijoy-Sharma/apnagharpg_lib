@@ -305,15 +305,19 @@
 				<!-- end panel-heading -->
                 <!-- begin panel-body -->
                 <div class="panel-body">
+                    <?php
+                    $gst_certificate_row = $this->db->get_where('setting', array('name' => 'gst_certificate'))->row();
+                    $gst_number_row      = $this->db->get_where('setting', array('name' => 'gst_number'))->row();
+                    $gst_enabled_row     = $this->db->get_where('setting', array('name' => 'gst_enabled'))->row();
+                    $current_gst_number  = ($gst_number_row && $gst_number_row->content !== '') ? $gst_number_row->content : '';
+                    $current_gst_enabled = ($gst_enabled_row && $gst_enabled_row->content == '1') ? '1' : '0';
+                    ?>
                     <?php echo form_open_multipart('website_settings/update_gst_certificate', array('method' => 'post')); ?>
                     <div class="form-group">
                         <label>Current GST Certificate</label>
                         <br>
-                        <?php
-                        $gst_certificate = $this->db->get_where('setting', array('name' => 'gst_certificate'))->row();
-                        if ($gst_certificate && $gst_certificate->content != '' && file_exists(FCPATH . 'uploads/website/' . $gst_certificate->content)):
-                        ?>
-                            <a href="<?php echo base_url(); ?>uploads/website/<?php echo $gst_certificate->content; ?>" target="_blank" class="btn btn-info">
+                        <?php if ($gst_certificate_row && $gst_certificate_row->content != '' && file_exists(FCPATH . 'uploads/website/' . $gst_certificate_row->content)): ?>
+                            <a href="<?php echo base_url(); ?>uploads/website/<?php echo $gst_certificate_row->content; ?>" target="_blank" class="btn btn-info">
                                 <i class="fa fa-eye"></i> View Current GST Certificate
                             </a>
                         <?php else: ?>
@@ -321,11 +325,24 @@
                         <?php endif; ?>
                     </div>
                     <div class="note note-yellow m-b-15">
-                        <span>Upload a GST certificate document (PDF, JPG, PNG). This will replace the existing one.</span>
+                        <span>Upload a GST certificate document (PDF, JPG, PNG). This will replace the existing one. You can also update the GST Number and toggle GST on/off for invoices below.</span>
                     </div>
                     <div class="form-group">
                         <label for="gst_certificate">Select GST Certificate</label>
                         <input class="form-control" type="file" id="gst_certificate" name="gst_certificate" accept=".pdf,.jpg,.jpeg,.png">
+                    </div>
+                    <div class="form-group">
+                        <label for="gst_number">GST Number <span class="text-danger">*</span></label>
+                        <input class="form-control" type="text" id="gst_number" name="gst_number" maxlength="20" placeholder="e.g. 18CLWPM0939F1ZL" value="<?php echo html_escape($current_gst_number); ?>">
+                        <small class="f-s-12 text-muted">This number will be displayed on every invoice. 15-character GSTIN format recommended.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Enable GST on Invoices</label>
+                        <div class="checkbox checkbox-css is-changed" style="margin-top:0;">
+                            <input type="checkbox" id="gst_enabled" name="gst_enabled" value="1" <?php echo ($current_gst_enabled == '1') ? 'checked' : ''; ?>>
+                            <label for="gst_enabled" style="padding-left:25px;">Show GST (18%) on invoices</label>
+                        </div>
+                        <small class="f-s-12 text-muted">When enabled, invoices will compute 18% GST on the subtotal and display the GST number in the header.</small>
                     </div>
 
                     <button type="submit" class="mb-sm btn btn-primary"><?php echo $this->lang->line('update'); ?></button>
@@ -381,6 +398,56 @@
                 </div>
                 <!-- end panel-body -->
             </div>
+        </div>
+    </div>
+    <!-- end row -->
+
+    <!-- begin row -->
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="panel panel-inverse">
+                <!-- begin panel-heading -->
+                <div class="panel-heading">
+                    <div class="panel-heading-btn">
+                        <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-default" data-click="panel-expand"><i class="fa fa-expand"></i></a>
+                        <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-success" data-click="panel-reload"><i class="fa fa-redo"></i></a>
+                        <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-warning" data-click="panel-collapse"><i class="fa fa-minus"></i></a>
+                        <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-danger" data-click="panel-remove"><i class="fa fa-times"></i></a>
+                    </div>
+                    <h4 class="panel-title">Trade Licence</h4>
+                </div>
+                <!-- end panel-heading -->
+                <!-- begin panel-body -->
+                <div class="panel-body">
+                    <?php echo form_open_multipart('website_settings/update_trade_licence', array('method' => 'post')); ?>
+                    <div class="form-group">
+                        <label>Current Trade Licence</label>
+                        <br>
+                        <?php
+                        $trade_licence = $this->db->get_where('setting', array('name' => 'trade_licence'))->row();
+                        if ($trade_licence && $trade_licence->content != '' && file_exists(FCPATH . 'uploads/website/' . $trade_licence->content)):
+                        ?>
+                            <a href="<?php echo base_url(); ?>uploads/website/<?php echo $trade_licence->content; ?>" target="_blank" class="btn btn-info">
+                                <i class="fa fa-eye"></i> View Current Trade Licence
+                            </a>
+                        <?php else: ?>
+                            <span class="text-danger">No trade licence uploaded yet.</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="note note-yellow m-b-15">
+                        <span>Upload a Trade Licence document (PDF, JPG, JPEG, PNG). This will replace the existing one.</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="trade_licence">Select Trade Licence</label>
+                        <input class="form-control" type="file" id="trade_licence" name="trade_licence" accept=".pdf,.jpg,.jpeg,.png">
+                    </div>
+
+                    <button type="submit" class="mb-sm btn btn-primary"><?php echo $this->lang->line('update'); ?></button>
+                    <?php echo form_close(); ?>
+                </div>
+                <!-- end panel-body -->
+            </div>
+            <!-- end panel -->
         </div>
     </div>
     <!-- end row -->

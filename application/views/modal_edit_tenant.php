@@ -114,16 +114,25 @@ foreach ($tenant_info as $tenant) :
 				<span>To assign a seat, you must activate the student.</span>
 			</div>
 			<div class="form-group">
-				<label>Shift *</label>
-				<div>
-					<select style="width: 100%" class="form-control default-select2" name="shift_id" data-parsley-required="true">
-						<option value="">Select shift</option>
-						<?php foreach ($this->db->order_by('shift_id', 'asc')->get('study_shift')->result_array() as $shift) : ?>
-							<option <?php if ($shift['shift_id'] == $tenant['shift_id']) echo 'selected'; ?> value="<?php echo html_escape($shift['shift_id']); ?>"><?php echo html_escape($shift['shift_name'] . ' - ' . $shift['timing_label']); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</div>
+			<label>Shifts *</label>
+			<div>
+				<?php
+				$current_tenant_id = isset($param2) ? $param2 : 0;
+				$preselected_shifts = $current_tenant_id
+					? $this->model->get_tenant_shift_ids($current_tenant_id)
+					: array();
+				if (empty($preselected_shifts) && !empty($tenant['shift_id'])) {
+					$preselected_shifts = array((int) $tenant['shift_id']);
+				}
+				?>
+				<select style="width: 100%" class="form-control default-select2" name="shift_ids[]" id="shift_ids_edit" multiple="multiple" data-parsley-required="true" data-placeholder="Select one or more shifts">
+					<?php foreach ($this->db->order_by('shift_id', 'asc')->get('study_shift')->result_array() as $shift) : ?>
+						<option <?php if (in_array((int) $shift['shift_id'], $preselected_shifts, true)) echo 'selected'; ?> value="<?php echo html_escape($shift['shift_id']); ?>"><?php echo html_escape($shift['shift_name'] . ' - ' . $shift['timing_label']); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<small class="text-muted">Hold Ctrl/Cmd to select multiple shifts. A student's plan price = sum of selected shifts.</small>
 			</div>
+		</div>
 			<div class="form-group">
 				<label>Plan *</label>
 				<div>

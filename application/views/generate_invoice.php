@@ -26,7 +26,7 @@
                                     echo html_escape(
                                         $tenant['name']
                                         . ($seat ? ' - ' . $seat->roomnumber . ' / Seat ' . $seat->room_number : ' - No Seat')
-                                        . ($shift ? ' - ' . $shift->shift_name : '')
+                                        . ($shift ? ' - ' . $shift->shift_name . ' (' . $shift->timing_label . ')' : '')
                                     );
                                     ?>
                                 </option>

@@ -194,6 +194,15 @@
                         <li class="<?php if ($page_name == 'utilities_report' || $page_name == 'single_year_utilities_report') echo 'active'; ?>">
                             <a href="<?php echo base_url(); ?>utilities_report"><?php echo $this->lang->line('utilities'); ?></a>
                         </li>
+                        <li class="<?php if ($page_name == 'monthly_sales_report') echo 'active'; ?>">
+                            <a href="<?php echo base_url(); ?>monthly_sales_report">Monthly Sales Report</a>
+                        </li>
+                        <li class="<?php if ($page_name == 'monthly_expense_report') echo 'active'; ?>">
+                            <a href="<?php echo base_url(); ?>monthly_expense_report">Monthly Expense Report</a>
+                        </li>
+                        <li class="<?php if ($page_name == 'annual_report') echo 'active'; ?>">
+                            <a href="<?php echo base_url(); ?>annual_report">Annual (Financial Year) Report</a>
+                        </li>
                     </ul>
                 </li>
             <?php endif; ?>
@@ -268,9 +277,23 @@
             </li>
             <?php if (in_array($this->db->get_where('module', array('module_name' => 'lease_monitor'))->row()->module_id, $this->session->userdata('permissions'))) : ?>
                 <li class="<?php if ($page_name == 'lease_monitor') echo 'active'; ?>">
-                    <a href="<?php echo base_url(); ?>lease_monitor">
-                        <i class="fa fa-desktop"></i>
-                        <span>Plan Expiry Monitor</span>
+                <a href="<?php echo base_url(); ?>lease_monitor">
+                    <i class="fa fa-desktop"></i>
+                    <span>Plan Expiry Monitor</span>
+                </a>
+            </li>
+            <?php endif; ?>
+            <li class="<?php if ($page_name == 'student_documents') echo 'active'; ?>">
+                <a href="<?php echo base_url(); ?>student_documents">
+                    <i class="fa fa-file-alt"></i>
+                    <span>Documents</span>
+                </a>
+            </li>
+            <?php if ((int)$this->session->userdata('user_type') !== 3): ?>
+                <li class="<?php if (in_array($page_name, array('staff_training','add_staff_training','edit_staff_training','view_staff_training'))) echo 'active'; ?>">
+                    <a href="<?php echo base_url(); ?>staff_training">
+                        <i class="fa fa-graduation-cap"></i>
+                        <span>Staff Training</span>
                     </a>
                 </li>
             <?php endif; ?>

@@ -150,13 +150,13 @@
                                 <span>To assign a seat, you must activate the student.</span>
                             </div>
                             <div class="form-group">
-                                <label>Shift *</label>
-                                <select style="width: 100%" class="form-control default-select2" name="shift_id" data-parsley-required="true">
-                                    <option value="">Select shift</option>
+                                <label>Shifts *</label>
+                                <select style="width: 100%" class="form-control default-select2" name="shift_ids[]" id="shift_ids" multiple="multiple" data-parsley-required="true" data-placeholder="Select one or more shifts">
                                     <?php foreach ($this->db->order_by('shift_id', 'asc')->get('study_shift')->result_array() as $shift) : ?>
                                         <option value="<?php echo html_escape($shift['shift_id']); ?>"><?php echo html_escape($shift['shift_name'] . ' - ' . $shift['timing_label']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                                <small class="text-muted">Hold Ctrl/Cmd to select multiple shifts. A student's plan price = sum of selected shifts.</small>
                             </div>
                             <div class="form-group">
                                 <label>Plan *</label>

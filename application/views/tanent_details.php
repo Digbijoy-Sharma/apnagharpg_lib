@@ -48,7 +48,11 @@
     <h3><span style="font-size: 18.5px !important;">M/No.:</span></h3>
     <h3><span style="font-size: 18.5px !important;">Aadhar Card No.:</span></h3> -->
     <h3><span >S.O:</span></h3>
-            <h3><span >Address: House no 3,  by lane No 1, Ajanta path, gopal fhukan Road, Survey, Beltola Tiniali, Assam 781028</span></h3>
+            <h3><span >Address: <?php
+                $system_address_row = $this->db->get_where('setting', array('name' => 'address'))->row();
+                $system_address = ($system_address_row && trim($system_address_row->content) !== '') ? $system_address_row->content : 'N/A';
+                echo $system_address; // setting 'address' may contain <br> for line breaks
+            ?></span></h3>
     <h3><span >M/No.: 9756056848</span></h3>
     <h3><span >Aadhar Card No.: 203611900031</span></h3>
     <h3><span >Pan card No.:</span></h3>

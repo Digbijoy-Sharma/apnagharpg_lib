@@ -71,6 +71,7 @@
                                 <th><?php echo $this->lang->line('updated_on'); ?></th>
                                 <th><?php echo $this->lang->line('updated_by'); ?></th>
                                 <th><?php echo $this->lang->line('options'); ?></th>
+                                <th width="110">WhatsApp</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -146,6 +147,17 @@
                                             </div>
                                         </div>
                                     </td>
+                                    <td>
+                                        <?php if (!empty($expired_lease['mobile_number'])): ?>
+                                            <button type="button" class="btn btn-success btn-xs" style="background-color: #25D366; border-color: #25D366;"
+                                                    onclick="sendWhatsAppReminder('<?php echo htmlspecialchars($expired_lease['mobile_number'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($expired_lease['name'], ENT_QUOTES, 'UTF-8'); ?>', <?php echo (int) $expired_lease['lease_end']; ?>);"
+                                                    title="Open WhatsApp Web with a pre-filled renewal reminder">
+                                                <i class="fab fa-whatsapp"></i> Remind
+                                            </button>
+                                        <?php else: ?>
+                                            <span class="text-muted">&mdash;</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -189,6 +201,7 @@
                                 <th><?php echo $this->lang->line('updated_on'); ?></th>
                                 <th><?php echo $this->lang->line('updated_by'); ?></th>
                                 <th><?php echo $this->lang->line('options'); ?></th>
+                                <th width="110">WhatsApp</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -264,6 +277,19 @@
                                             </div>
                                         </div>
                                     </td>
+                                    <td>
+                                        <?php
+                                        $is_expiring_soon_l30 = !empty($less_than_30_lease['lease_end']) && (($less_than_30_lease['lease_end'] - time()) <= (7 * 24 * 60 * 60));
+                                        if ($is_expiring_soon_l30 && !empty($less_than_30_lease['mobile_number'])): ?>
+                                            <button type="button" class="btn btn-success btn-xs" style="background-color: #25D366; border-color: #25D366;"
+                                                    onclick="sendWhatsAppReminder('<?php echo htmlspecialchars($less_than_30_lease['mobile_number'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($less_than_30_lease['name'], ENT_QUOTES, 'UTF-8'); ?>', <?php echo (int) $less_than_30_lease['lease_end']; ?>);"
+                                                    title="Open WhatsApp Web with a pre-filled renewal reminder">
+                                                <i class="fab fa-whatsapp"></i> Remind
+                                            </button>
+                                        <?php else: ?>
+                                            <span class="text-muted">&mdash;</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -307,6 +333,7 @@
                                 <th><?php echo $this->lang->line('updated_on'); ?></th>
                                 <th><?php echo $this->lang->line('updated_by'); ?></th>
                                 <th><?php echo $this->lang->line('options'); ?></th>
+                                <th width="110">WhatsApp</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -382,6 +409,19 @@
                                             </div>
                                         </div>
                                     </td>
+                                    <td>
+                                        <?php
+                                        $is_expiring_soon_l60 = !empty($less_than_60_lease['lease_end']) && (($less_than_60_lease['lease_end'] - time()) <= (7 * 24 * 60 * 60));
+                                        if ($is_expiring_soon_l60 && !empty($less_than_60_lease['mobile_number'])): ?>
+                                            <button type="button" class="btn btn-success btn-xs" style="background-color: #25D366; border-color: #25D366;"
+                                                    onclick="sendWhatsAppReminder('<?php echo htmlspecialchars($less_than_60_lease['mobile_number'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($less_than_60_lease['name'], ENT_QUOTES, 'UTF-8'); ?>', <?php echo (int) $less_than_60_lease['lease_end']; ?>);"
+                                                    title="Open WhatsApp Web with a pre-filled renewal reminder">
+                                                <i class="fab fa-whatsapp"></i> Remind
+                                            </button>
+                                        <?php else: ?>
+                                            <span class="text-muted">&mdash;</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -425,6 +465,7 @@
                                 <th><?php echo $this->lang->line('updated_on'); ?></th>
                                 <th><?php echo $this->lang->line('updated_by'); ?></th>
                                 <th><?php echo $this->lang->line('options'); ?></th>
+                                <th width="110">WhatsApp</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -500,6 +541,19 @@
                                             </div>
                                         </div>
                                     </td>
+                                    <td>
+                                        <?php
+                                        $is_expiring_soon_l90 = !empty($less_than_90_lease['lease_end']) && (($less_than_90_lease['lease_end'] - time()) <= (7 * 24 * 60 * 60));
+                                        if ($is_expiring_soon_l90 && !empty($less_than_90_lease['mobile_number'])): ?>
+                                            <button type="button" class="btn btn-success btn-xs" style="background-color: #25D366; border-color: #25D366;"
+                                                    onclick="sendWhatsAppReminder('<?php echo htmlspecialchars($less_than_90_lease['mobile_number'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($less_than_90_lease['name'], ENT_QUOTES, 'UTF-8'); ?>', <?php echo (int) $less_than_90_lease['lease_end']; ?>);"
+                                                    title="Open WhatsApp Web with a pre-filled renewal reminder">
+                                                <i class="fab fa-whatsapp"></i> Remind
+                                            </button>
+                                        <?php else: ?>
+                                            <span class="text-muted">&mdash;</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -514,3 +568,21 @@
     <!-- end row -->
 </div>
 <!-- end #content -->
+
+<script>
+function sendWhatsAppReminder(mobile, name, leaseEndTimestamp) {
+    if (!mobile) { return; }
+    var digits = String(mobile).replace(/\D/g, '');
+    if (!digits) { return; }
+    if (digits.length > 10) {
+        digits = digits.slice(-10);
+    }
+    var d = new Date(parseInt(leaseEndTimestamp, 10) * 1000);
+    if (isNaN(d.getTime())) { d = new Date(); }
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var dateStr = d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+    var text = 'Dear ' + name + ', your plan at Apna Ghar PG is expiring on ' + dateStr + '. Please renew to continue.';
+    var url = 'https://wa.me/91' + digits + '?text=' + encodeURIComponent(text);
+    window.open(url, '_blank');
+}
+</script>

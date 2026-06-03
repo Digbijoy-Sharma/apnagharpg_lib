@@ -76,6 +76,19 @@ class Model extends CI_Model
 			updated_by INT(11)
 		)");
 
+		$this->db->query("CREATE TABLE IF NOT EXISTS tenant_shift (
+			tenant_shift_id INT(11) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			tenant_id INT(11) NOT NULL,
+			shift_id INT(11) NOT NULL,
+			created_on INT(11),
+			created_by INT(11),
+			timestamp INT(11),
+			updated_by INT(11),
+			UNIQUE KEY uniq_tenant_shift (tenant_id, shift_id),
+			KEY tenant_id (tenant_id),
+			KEY shift_id (shift_id)
+		)");
+
 		if (!$this->db->count_all('study_shift')) {
 			$now = time();
 			$default_shifts = array(
@@ -112,6 +125,17 @@ class Model extends CI_Model
 					'half_yearly_price' => 7200.00,
 					'yearly_price' => 14400.00
 				),
+				array(
+					'shift_name' => 'Shift 4',
+					'timing_label' => '6:30 AM - 11:00 PM',
+					'start_time' => '06:30 AM',
+					'end_time' => '11:00 PM',
+					'daily_price' => 80.00,
+					'monthly_price' => 2400.00,
+					'quarterly_price' => 7200.00,
+					'half_yearly_price' => 14400.00,
+					'yearly_price' => 28800.00
+				),
 			);
 
 			foreach ($default_shifts as $shift) {
@@ -122,6 +146,25 @@ class Model extends CI_Model
 				$shift['updated_by'] = $this->session->userdata('user_id');
 				$this->db->insert('study_shift', $shift);
 			}
+		}
+
+		// Backfill: any existing tenant with a single shift_id that has no tenant_shift row yet
+		$existing = $this->db->query("
+			SELECT t.tenant_id, t.shift_id
+			FROM tenant t
+			LEFT JOIN tenant_shift ts ON ts.tenant_id = t.tenant_id
+			WHERE t.shift_id > 0 AND ts.tenant_shift_id IS NULL
+		")->result_array();
+		foreach ($existing as $row) {
+			$now = time();
+			$this->db->insert('tenant_shift', array(
+				'tenant_id'  => $row['tenant_id'],
+				'shift_id'   => $row['shift_id'],
+				'created_on' => $now,
+				'created_by' => $this->session->userdata('user_id'),
+				'timestamp'  => $now,
+				'updated_by' => $this->session->userdata('user_id')
+			));
 		}
 	}
 
@@ -198,6 +241,112 @@ class Model extends CI_Model
 		}
 	}
 
+	public function get_tenant_shift_ids($tenant_id = 0)
+	{
+		if (!$tenant_id) {
+			return array();
+		}
+		$rows = $this->db
+			->select('shift_id')
+			->from('tenant_shift')
+			->where('tenant_id', $tenant_id)
+			->get()
+			->result_array();
+		$ids = array();
+		foreach ($rows as $row) {
+			$ids[] = (int) $row['shift_id'];
+		}
+		return $ids;
+	}
+
+	public function get_tenant_shifts($tenant_id = 0)
+	{
+		if (!$tenant_id) {
+			return array();
+		}
+		return $this->db
+			->select('s.shift_id, s.shift_name, s.timing_label, s.start_time, s.end_time,
+				s.daily_price, s.monthly_price, s.quarterly_price, s.half_yearly_price, s.yearly_price, s.status')
+			->from('tenant_shift ts')
+			->join('study_shift s', 's.shift_id = ts.shift_id', 'left')
+			->where('ts.tenant_id', $tenant_id)
+			->order_by('s.shift_id', 'asc')
+			->get()
+			->result_array();
+	}
+
+	public function set_tenant_shifts($tenant_id = 0, $shift_ids = array())
+	{
+		if (!$tenant_id) {
+			return false;
+		}
+		$this->db->where('tenant_id', $tenant_id)->delete('tenant_shift');
+
+		if (!is_array($shift_ids)) {
+			$shift_ids = array($shift_ids);
+		}
+		$shift_ids = array_values(array_unique(array_filter(array_map('intval', $shift_ids))));
+
+		if (empty($shift_ids)) {
+			return true;
+		}
+
+		$now = time();
+		$user_id = $this->session->userdata('user_id');
+		$rows = array();
+		foreach ($shift_ids as $shift_id) {
+			$rows[] = array(
+				'tenant_id'  => $tenant_id,
+				'shift_id'   => $shift_id,
+				'created_on' => $now,
+				'created_by' => $user_id,
+				'timestamp'  => $now,
+				'updated_by' => $user_id
+			);
+		}
+		return $this->db->insert_batch('tenant_shift', $rows);
+	}
+
+	private function get_tenant_shifts_plan_amount($shifts, $plan_type)
+	{
+		if (empty($shifts)) {
+			return 0;
+		}
+		$total = 0;
+		foreach ($shifts as $shift) {
+			$total += $this->get_shift_plan_amount((object) $shift, $plan_type);
+		}
+		return $total;
+	}
+
+	private function build_tenant_shifts_label($shifts)
+	{
+		if (empty($shifts)) {
+			return null;
+		}
+		$parts = array();
+		foreach ($shifts as $shift) {
+			if (!empty($shift['shift_name'])) {
+				$parts[] = $shift['shift_name'] . ' (' . $shift['timing_label'] . ')';
+			}
+		}
+		return empty($parts) ? null : implode(', ', $parts);
+	}
+
+	private function build_tenant_shifts_short_label($shifts)
+	{
+		if (empty($shifts)) {
+			return null;
+		}
+		$parts = array();
+		foreach ($shifts as $shift) {
+			if (!empty($shift['shift_name'])) {
+				$parts[] = $shift['shift_name'];
+			}
+		}
+		return empty($parts) ? null : implode(', ', $parts);
+	}
+
 	private function get_seat_plan_amount($seat, $plan_type)
 	{
 		if (!$seat) {
@@ -258,6 +407,23 @@ class Model extends CI_Model
 		if (!empty($tenant->shift_id)) {
 			$shift = $this->db->get_where('study_shift', array('shift_id' => $tenant->shift_id, 'status' => 1))->row();
 		}
+		$tenant_shifts = $this->get_tenant_shifts($tenant_id);
+		if (empty($tenant_shifts) && $shift) {
+			$tenant_shifts = array(
+				array(
+					'shift_id'      => $shift->shift_id,
+					'shift_name'    => $shift->shift_name,
+					'timing_label'  => $shift->timing_label,
+					'start_time'    => $shift->start_time,
+					'end_time'      => $shift->end_time,
+					'daily_price'   => $shift->daily_price,
+					'monthly_price' => $shift->monthly_price,
+					'quarterly_price'   => $shift->quarterly_price,
+					'half_yearly_price' => $shift->half_yearly_price,
+					'yearly_price'  => $shift->yearly_price
+				)
+			);
+		}
 
 		$start_timestamp = $start_date ? strtotime($start_date) : 0;
 		if (!$start_timestamp) {
@@ -272,9 +438,16 @@ class Model extends CI_Model
 		$end_timestamp = $this->calculate_plan_end($start_timestamp, $tenant->plan_type);
 		$amount = $this->get_seat_plan_amount($seat, $tenant->plan_type);
 		if ($amount <= 0) {
-			$amount = $this->get_shift_plan_amount($shift, $tenant->plan_type);
+			$amount = $this->get_tenant_shifts_plan_amount($tenant_shifts, $tenant->plan_type);
+		} else {
+			$shifts_total = $this->get_tenant_shifts_plan_amount($tenant_shifts, $tenant->plan_type);
+			if ($shifts_total > $amount) {
+				$amount = $shifts_total;
+			}
 		}
 		$seat_label = $this->build_seat_label($tenant->room_id);
+		$shift_label = $this->build_tenant_shifts_label($tenant_shifts);
+		$shift_label_short = $this->build_tenant_shifts_short_label($tenant_shifts);
 
 		$invoice['tenant_name'] = $tenant->name;
 		$invoice['status'] = $status;
@@ -284,7 +457,7 @@ class Model extends CI_Model
 		$invoice['invoice_type'] = 1;
 		$invoice['tenant_mobile'] = $tenant->mobile_number;
 		$invoice['room_number'] = $seat_label;
-		$invoice['shift_name'] = $shift ? $shift->shift_name . ' (' . $shift->timing_label . ')' : null;
+		$invoice['shift_name'] = $shift_label;
 		$invoice['plan_type'] = $tenant->plan_type;
 		$invoice['seat_label'] = $seat_label;
 		$invoice['tenant_id'] = $tenant_id;
@@ -304,7 +477,7 @@ class Model extends CI_Model
 		$data['invoice_id'] = $invoice_id;
 		$data['tenant_id'] = $tenant_id;
 		$data['plan_type'] = $tenant->plan_type;
-		$data['shift_name'] = $shift ? $shift->shift_name : null;
+		$data['shift_name'] = $shift_label_short;
 		$data['created_on'] = time();
 		$data['created_by'] = $this->session->userdata('user_id');
 		$data['timestamp'] = time();
@@ -553,7 +726,12 @@ class Model extends CI_Model
 			$data['emergency_person']	=	$this->input->post('emergency_person');
 			$data['emergency_contact']	=	$this->input->post('emergency_contact');
 			$data['room_id']			=	$this->input->post('room_id') ? $this->input->post('room_id') : 0;
-			$data['shift_id']			=	$this->input->post('shift_id') ? $this->input->post('shift_id') : null;
+			$shift_ids					=	$this->input->post('shift_ids');
+			if (!is_array($shift_ids)) {
+				$shift_ids = array();
+			}
+			$shift_ids					=	array_values(array_unique(array_filter(array_map('intval', $shift_ids))));
+			$data['shift_id']			=	!empty($shift_ids) ? $shift_ids[0] : ($this->input->post('shift_id') ? $this->input->post('shift_id') : null);
 			$data['plan_type']			=	$this->input->post('plan_type');
 			$this->sync_student_plan_dates($data);
 
@@ -567,9 +745,11 @@ class Model extends CI_Model
 			$data['updated_by']			=	$this->session->userdata('user_id');
 
 			$this->db->insert('tenant', $data);
+			$new_tenant_id = $this->db->insert_id();
+			$this->set_tenant_shifts($new_tenant_id, $shift_ids);
 
 			if ($this->input->post('email')) {
-				$data2['person_id']		=	$this->db->insert_id();
+				$data2['person_id']		=	$new_tenant_id;
 				$data2['email']			=	$this->input->post('email');
 				$data2['password']		=	$this->input->post('password') ? password_hash($this->input->post('password'), PASSWORD_DEFAULT) : password_hash(123456, PASSWORD_DEFAULT);
 				$data2['user_type']		=	3;
@@ -749,7 +929,12 @@ class Model extends CI_Model
 		$data['home_address']			=	$this->input->post('home_address_line_1') . '<br>' . $this->input->post('home_address_line_2');
 		$data['emergency_person']		=	$this->input->post('emergency_person');
 		$data['emergency_contact']		=	$this->input->post('emergency_contact');
-		$data['shift_id']				=	$this->input->post('shift_id') ? $this->input->post('shift_id') : null;
+		$shift_ids						=	$this->input->post('shift_ids');
+		if (!is_array($shift_ids)) {
+			$shift_ids = array();
+		}
+		$shift_ids						=	array_values(array_unique(array_filter(array_map('intval', $shift_ids))));
+		$data['shift_id']				=	!empty($shift_ids) ? $shift_ids[0] : ($this->input->post('shift_id') ? $this->input->post('shift_id') : null);
 		$data['plan_type']				=	$this->input->post('plan_type');
 		$data['profession_id']			=	$this->input->post('profession_id');
 		$data['work_address']			=	$this->input->post('work_address_line_1') . '<br>' . $this->input->post('work_address_line_2');
@@ -762,6 +947,7 @@ class Model extends CI_Model
 
 		$this->db->where('tenant_id', $tenant_id);
 		$this->db->update('tenant', $data);
+		$this->set_tenant_shifts($tenant_id, $shift_ids);
 
 		if ($this->input->post('email')) {
 			if ($this->db->get_where('user', array('user_type' => 3, 'person_id' => $tenant_id))->num_rows() > 0) {
@@ -2026,6 +2212,243 @@ class Model extends CI_Model
 		redirect(base_url() . 'notices', 'refresh');
 	}
 
+	// ===================================================================
+	// Staff Training Module
+	// ===================================================================
+
+	/**
+	 * Convert a YouTube URL (any form) to an embed URL suitable for <iframe src="...">.
+	 * Returns null if the input is not a recognised YouTube URL.
+	 */
+	private function _youtube_url_to_embed($url)
+	{
+		if (!is_string($url) || $url === '') return null;
+		$url = trim($url);
+
+		// youtu.be/<id>
+		if (preg_match('#^https?://youtu\.be/([A-Za-z0-9_\-]+)#i', $url, $m)) {
+			return 'https://www.youtube.com/embed/' . $m[1];
+		}
+		// youtube.com/watch?v=<id>
+		if (preg_match('#^https?://(www\.)?youtube\.com/watch\?.*v=([A-Za-z0-9_\-]+)#i', $url, $m)) {
+			return 'https://www.youtube.com/embed/' . $m[2];
+		}
+		// youtube.com/embed/<id> (already embed)
+		if (preg_match('#^https?://(www\.)?youtube\.com/embed/([A-Za-z0-9_\-]+)#i', $url, $m)) {
+			return 'https://www.youtube.com/embed/' . $m[2];
+		}
+		// youtube.com/shorts/<id>
+		if (preg_match('#^https?://(www\.)?youtube\.com/shorts/([A-Za-z0-9_\-]+)#i', $url, $m)) {
+			return 'https://www.youtube.com/embed/' . $m[2];
+		}
+		return null;
+	}
+
+	function add_training_lesson()
+	{
+		$user_id = $this->session->userdata('user_id');
+		$now     = time();
+
+		// --- Video handling: either upload OR YouTube link (mutually exclusive) ---
+		$video_type = null;
+		$video_path = null;
+
+		// 1) Uploaded MP4 (if provided)
+		if (!empty($_FILES['video_upload']['name'])) {
+			$ext = strtolower(pathinfo($_FILES['video_upload']['name'], PATHINFO_EXTENSION));
+			if (in_array($ext, array('mp4'), true)) {
+				$upload_dir = $this->ensure_upload_directory('uploads/training');
+				$filename   = 'training_video_' . $now . '.' . $ext;
+				$target     = $upload_dir . $filename;
+				if (move_uploaded_file($_FILES['video_upload']['tmp_name'], $target)) {
+					$video_type = 'upload';
+					$video_path = $filename;
+				}
+			} else {
+				$this->session->set_flashdata('warning', 'Only MP4 video files are allowed for video upload.');
+			}
+		}
+
+		// 2) YouTube embed URL (overrides upload if both supplied)
+		if (!empty($_POST['youtube_url'])) {
+			$embed = $this->_youtube_url_to_embed($this->input->post('youtube_url'));
+			if ($embed !== null) {
+				// If we already had an upload, remove it
+				if ($video_type === 'upload' && $video_path && file_exists(FCPATH . 'uploads/training/' . $video_path)) {
+					@unlink(FCPATH . 'uploads/training/' . $video_path);
+				}
+				$video_type = 'youtube';
+				$video_path = $embed;
+			} else {
+				$this->session->set_flashdata('warning', 'Invalid YouTube URL. Please paste a valid youtu.be or youtube.com link.');
+			}
+		}
+
+		$data = array(
+			'title'      => $this->input->post('title'),
+			'video_type' => $video_type,
+			'video_path' => $video_path,
+			'body_html'  => $this->input->post('body_html'),
+			'created_by' => $user_id,
+			'created_on' => $now,
+			'updated_by' => $user_id,
+			'timestamp'  => $now,
+		);
+		$this->db->insert('training_lesson', $data);
+		$lesson_id = $this->db->insert_id();
+
+		// --- Multiple image uploads ---
+		if (!empty($_FILES['images']['name'][0])) {
+			$upload_dir = $this->ensure_upload_directory('uploads/training');
+			$file_count = count($_FILES['images']['name']);
+			for ($i = 0; $i < $file_count; $i++) {
+				if ($_FILES['images']['error'][$i] !== UPLOAD_ERR_OK) continue;
+				$ext = strtolower(pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION));
+				if (!in_array($ext, array('jpg','jpeg','png'), true)) continue;
+				$filename = 'training_img_' . $now . '_' . $i . '.' . $ext;
+				$target   = $upload_dir . $filename;
+				if (move_uploaded_file($_FILES['images']['tmp_name'][$i], $target)) {
+					$this->db->insert('training_lesson_image', array(
+						'lesson_id'  => $lesson_id,
+						'image_path' => $filename,
+						'timestamp'  => time(),
+					));
+				}
+			}
+		}
+
+		$this->session->set_flashdata('success', 'Training lesson added successfully.');
+		redirect(base_url() . 'staff_training', 'refresh');
+	}
+
+	function update_training_lesson($lesson_id = '')
+	{
+		$user_id = $this->session->userdata('user_id');
+		$now     = time();
+		$lesson  = $this->db->get_where('training_lesson', array('lesson_id' => (int)$lesson_id))->row();
+		if (!$lesson) {
+			$this->session->set_flashdata('warning', 'Training lesson not found.');
+			redirect(base_url() . 'staff_training', 'refresh');
+		}
+
+		// Determine new video type
+		$video_type = $lesson->video_type; // keep current by default
+		$video_path = $lesson->video_path;
+
+		// 1) If a new uploaded video is supplied, replace
+		if (!empty($_FILES['video_upload']['name'])) {
+			$ext = strtolower(pathinfo($_FILES['video_upload']['name'], PATHINFO_EXTENSION));
+			if ($ext === 'mp4') {
+				$upload_dir = $this->ensure_upload_directory('uploads/training');
+				$filename   = 'training_video_' . $now . '.' . $ext;
+				$target     = $upload_dir . $filename;
+				if (move_uploaded_file($_FILES['video_upload']['tmp_name'], $target)) {
+					// remove old upload if any
+					if ($lesson->video_type === 'upload' && $lesson->video_path && file_exists(FCPATH . 'uploads/training/' . $lesson->video_path)) {
+						@unlink(FCPATH . 'uploads/training/' . $lesson->video_path);
+					}
+					$video_type = 'upload';
+					$video_path = $filename;
+				}
+			} else {
+				$this->session->set_flashdata('warning', 'Only MP4 video files are allowed.');
+			}
+		}
+
+		// 2) YouTube link (overrides upload if supplied)
+		if (!empty($_POST['youtube_url'])) {
+			$embed = $this->_youtube_url_to_embed($this->input->post('youtube_url'));
+			if ($embed !== null) {
+				if ($video_type === 'upload' && $video_path && file_exists(FCPATH . 'uploads/training/' . $video_path)) {
+					@unlink(FCPATH . 'uploads/training/' . $video_path);
+				}
+				$video_type = 'youtube';
+				$video_path = $embed;
+			} else {
+				$this->session->set_flashdata('warning', 'Invalid YouTube URL.');
+			}
+		}
+
+		// 3) "Remove video" checkbox
+		if ($this->input->post('remove_video') === '1') {
+			if ($lesson->video_type === 'upload' && $lesson->video_path && file_exists(FCPATH . 'uploads/training/' . $lesson->video_path)) {
+				@unlink(FCPATH . 'uploads/training/' . $lesson->video_path);
+			}
+			$video_type = null;
+			$video_path = null;
+		}
+
+		$data = array(
+			'title'      => $this->input->post('title'),
+			'video_type' => $video_type,
+			'video_path' => $video_path,
+			'body_html'  => $this->input->post('body_html'),
+			'updated_by' => $user_id,
+			'timestamp'  => $now,
+		);
+		$this->db->where('lesson_id', (int)$lesson_id);
+		$this->db->update('training_lesson', $data);
+
+		// --- Append any newly uploaded images ---
+		if (!empty($_FILES['images']['name'][0])) {
+			$upload_dir = $this->ensure_upload_directory('uploads/training');
+			$file_count = count($_FILES['images']['name']);
+			for ($i = 0; $i < $file_count; $i++) {
+				if ($_FILES['images']['error'][$i] !== UPLOAD_ERR_OK) continue;
+				$ext = strtolower(pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION));
+				if (!in_array($ext, array('jpg','jpeg','png'), true)) continue;
+				$filename = 'training_img_' . $now . '_' . $i . '.' . $ext;
+				$target   = $upload_dir . $filename;
+				if (move_uploaded_file($_FILES['images']['tmp_name'][$i], $target)) {
+					$this->db->insert('training_lesson_image', array(
+						'lesson_id'  => (int)$lesson_id,
+						'image_path' => $filename,
+						'timestamp'  => $now,
+					));
+				}
+			}
+		}
+
+		$this->session->set_flashdata('success', 'Training lesson updated successfully.');
+		redirect(base_url() . 'staff_training', 'refresh');
+	}
+
+	function remove_training_lesson($lesson_id = '')
+	{
+		$lesson = $this->db->get_where('training_lesson', array('lesson_id' => (int)$lesson_id))->row();
+		if ($lesson) {
+			// Remove uploaded video file
+			if ($lesson->video_type === 'upload' && $lesson->video_path && file_exists(FCPATH . 'uploads/training/' . $lesson->video_path)) {
+				@unlink(FCPATH . 'uploads/training/' . $lesson->video_path);
+			}
+			// Remove all associated image files
+			$images = $this->db->get_where('training_lesson_image', array('lesson_id' => (int)$lesson_id))->result_array();
+			foreach ($images as $img) {
+				$path = FCPATH . 'uploads/training/' . $img['image_path'];
+				if (file_exists($path)) @unlink($path);
+			}
+			$this->db->where('lesson_id', (int)$lesson_id);
+			$this->db->delete('training_lesson_image');
+			$this->db->where('lesson_id', (int)$lesson_id);
+			$this->db->delete('training_lesson');
+		}
+		$this->session->set_flashdata('success', 'Training lesson deleted successfully.');
+		redirect(base_url() . 'staff_training', 'refresh');
+	}
+
+	function remove_training_image($image_id = '')
+	{
+		$img = $this->db->get_where('training_lesson_image', array('image_id' => (int)$image_id))->row();
+		if ($img) {
+			$path = FCPATH . 'uploads/training/' . $img->image_path;
+			if (file_exists($path)) @unlink($path);
+			$this->db->where('image_id', (int)$image_id);
+			$this->db->delete('training_lesson_image');
+		}
+		$redirect_to = $this->input->get('return') ? $this->input->get('return') : ('edit_staff_training/' . (int)$img->lesson_id);
+		redirect(base_url() . $redirect_to, 'refresh');
+	}
+
 	function add_complaint()
 	{
 		$data['complaint_number']			=	$this->random_strings(11);
@@ -2406,8 +2829,63 @@ class Model extends CI_Model
 		redirect(base_url() . 'owner_agreement_settings', 'refresh');
 	}
 
+	function update_website_trade_licence()
+	{
+		if (!empty($_FILES['trade_licence']['name'])) {
+			$config['upload_path']   = FCPATH . 'uploads/website/';
+			$config['allowed_types'] = 'pdf|jpg|jpeg|png';
+			$config['file_name']     = 'trade_licence_' . time();
+			$config['max_size']      = 20480;
+			$config['overwrite']     = TRUE;
+
+			$this->load->library('upload', $config);
+			$this->upload->initialize($config);
+
+			if ($this->upload->do_upload('trade_licence')) {
+				$upload_data = $this->upload->data();
+				$trade_licence = $this->db->get_where('setting', array('name' => 'trade_licence'))->row();
+
+				if ($trade_licence && $trade_licence->content != '' && file_exists(FCPATH . 'uploads/website/' . $trade_licence->content)) {
+					unlink(FCPATH . 'uploads/website/' . $trade_licence->content);
+				}
+
+				$data['content'] = $upload_data['file_name'];
+				$data['timestamp'] = time();
+				$data['updated_by'] = $this->session->userdata('user_id');
+
+				if ($trade_licence) {
+					$this->db->where('name', 'trade_licence');
+					$this->db->update('setting', $data);
+				} else {
+					$data['name'] = 'trade_licence';
+					$data['created_on'] = time();
+					$data['created_by'] = $this->session->userdata('user_id');
+					$this->db->insert('setting', $data);
+				}
+
+				$this->session->set_flashdata('success', 'Trade licence updated successfully');
+			} else {
+				$this->session->set_flashdata('warning', strip_tags($this->upload->display_errors()));
+			}
+		} else {
+			$this->session->set_flashdata('warning', 'Please select a trade licence to upload.');
+		}
+
+		redirect(base_url() . 'website_settings', 'refresh');
+	}
+
 	function update_website_gst_certificate()
 	{
+		$user_id = $this->session->userdata('user_id');
+
+		// --- Save GST Number and GST Enabled flag (always processed, even if no file uploaded) ---
+		$gst_number  = trim((string)$this->input->post('gst_number'));
+		$gst_enabled = ($this->input->post('gst_enabled') === '1') ? '1' : '0';
+
+		$this->_save_setting('gst_number', $gst_number, $user_id);
+		$this->_save_setting('gst_enabled', $gst_enabled, $user_id);
+
+		// --- Save GST Certificate file (optional) ---
 		if (!empty($_FILES['gst_certificate']['name'])) {
 			$config['upload_path']   = FCPATH . 'uploads/website/';
 			$config['allowed_types'] = 'pdf|jpg|jpeg|png';
@@ -2428,7 +2906,7 @@ class Model extends CI_Model
 
 				$data['content'] = $upload_data['file_name'];
 				$data['timestamp'] = time();
-				$data['updated_by'] = $this->session->userdata('user_id');
+				$data['updated_by'] = $user_id;
 
 				if ($gst_certificate) {
 					$this->db->where('name', 'gst_certificate');
@@ -2436,19 +2914,43 @@ class Model extends CI_Model
 				} else {
 					$data['name'] = 'gst_certificate';
 					$data['created_on'] = time();
-					$data['created_by'] = $this->session->userdata('user_id');
+					$data['created_by'] = $user_id;
 					$this->db->insert('setting', $data);
 				}
 
-				$this->session->set_flashdata('success', 'GST certificate updated successfully');
+				$this->session->set_flashdata('success', 'GST settings updated successfully');
 			} else {
 				$this->session->set_flashdata('warning', strip_tags($this->upload->display_errors()));
+				redirect(base_url() . 'website_settings', 'refresh');
+				return;
 			}
 		} else {
-			$this->session->set_flashdata('warning', 'Please select a GST certificate to upload.');
+			// Only GST number / enabled flag was submitted
+			$this->session->set_flashdata('success', 'GST settings updated successfully');
 		}
 
 		redirect(base_url() . 'website_settings', 'refresh');
+	}
+
+	// Helper: insert or update a row in the `setting` table by name
+	private function _save_setting($name, $content, $user_id)
+	{
+		$row = $this->db->get_where('setting', array('name' => $name))->row();
+		$data = array(
+			'content'   => (string)$content,
+			'timestamp' => time(),
+			'updated_by'=> $user_id,
+		);
+
+		if ($row) {
+			$this->db->where('name', $name);
+			$this->db->update('setting', $data);
+		} else {
+			$data['name']       = $name;
+			$data['created_on'] = time();
+			$data['created_by'] = $user_id;
+			$this->db->insert('setting', $data);
+		}
 	}
 
 	function update_tenant_agreement_settings()

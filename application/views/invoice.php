@@ -31,6 +31,17 @@
 				<a href="javascript:;" onclick="window.print()" class="btn btn-sm btn-white m-b-10 p-l-5 hidden-print">
 					<i class="fa fa-print t-plus-1 fa-fw fa-lg"></i> <?php echo $this->lang->line('print'); ?>
 				</a>
+				<?php
+					$whatsapp_pre_invoice = $this->db->get_where('invoice', array('invoice_id' => $invoice_id))->row();
+					$whatsapp_tenant = $this->db->get_where('tenant', array('tenant_id' => $whatsapp_pre_invoice ? $whatsapp_pre_invoice->tenant_id : 0))->row();
+					$whatsapp_mobile = ($whatsapp_tenant && !empty($whatsapp_tenant->mobile_number)) ? $whatsapp_tenant->mobile_number : '';
+					$whatsapp_name = ($whatsapp_tenant && !empty($whatsapp_tenant->name)) ? $whatsapp_tenant->name : ($whatsapp_pre_invoice ? $whatsapp_pre_invoice->tenant_name : '');
+				?>
+				<?php if (!empty($whatsapp_mobile)): ?>
+					<a href="javascript:;" onclick="sendInvoiceViaWhatsApp('<?php echo htmlspecialchars($whatsapp_mobile, ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($whatsapp_name, ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars($whatsapp_pre_invoice ? $whatsapp_pre_invoice->invoice_number : '', ENT_QUOTES, 'UTF-8'); ?>', '<?php echo number_format((float)($whatsapp_pre_invoice->amount ?? 0), 2, '.', ''); ?>', '<?php echo base_url(); ?>uploads/invoices/<?php echo htmlspecialchars($whatsapp_pre_invoice->invoice_number, ENT_QUOTES, 'UTF-8'); ?>.pdf');" class="btn btn-sm m-b-10 p-l-5 hidden-print" style="background-color: #25D366; border-color: #25D366; color: #fff; margin-left: 6px;" title="Open WhatsApp Web with a pre-filled invoice message">
+						<i class="fab fa-whatsapp fa-lg"></i> Send via WhatsApp
+					</a>
+				<?php endif; ?>
 			</span>
 			<?php echo html_escape($this->db->get_where('setting', array('name' => 'tagline'))->row()->content); ?>
 		</div>
@@ -114,6 +125,18 @@
 			$late_fee = $invoice->late_fee;
 			
 			$grand_total = $rent_amount + $invoice_services_total + $late_fee;
+
+			// --- GST calculation (controlled from website_settings) ---
+			$gst_number_row  = $this->db->get_where('setting', array('name' => 'gst_number'))->row();
+			$gst_enabled_row = $this->db->get_where('setting', array('name' => 'gst_enabled'))->row();
+			$gst_number      = ($gst_number_row && $gst_number_row->content !== '') ? $gst_number_row->content : '';
+			$gst_enabled     = ($gst_enabled_row && $gst_enabled_row->content == '1') ? true : false;
+			$gst_percent     = 18;
+			$gst_amount      = 0;
+			if ($gst_enabled && $gst_number !== '') {
+				$gst_amount = round($grand_total * ($gst_percent / 100), 2);
+				$grand_total = $grand_total + $gst_amount;
+			}
 			
 			// Calculate paid amount from transactions
 			$this->db->select_sum('amount');
@@ -133,7 +156,11 @@
 		<div class="custom-invoice-print">
 			<div class="custom-header">
 				<div class="header-left">
-					GSTIN: 18CLWPM0939F1ZL •
+					<?php if (!empty($gst_number)): ?>
+						GSTIN: <?php echo html_escape($gst_number); ?> •
+					<?php else: ?>
+						GSTIN: N/A •
+					<?php endif; ?>
 				</div>
 				<div class="header-right">
 					Original • #Sales Invoice no. <?php echo $invoice->invoice_number; ?>
@@ -241,8 +268,20 @@
 						<td class="text-center">-</td>
 						<td class="text-center">-</td>
 						<td class="text-center">-</td>
-						<td class="text-right"><strong><?php echo number_format($grand_total, 2, '.', ''); ?></strong></td>
+						<td class="text-right"><strong><?php echo number_format($rent_amount + $invoice_services_total + $late_fee, 2, '.', ''); ?></strong></td>
 					</tr>
+					<?php if ($gst_enabled && $gst_amount > 0): ?>
+					<tr class="gst-row">
+						<td></td>
+						<td><em>GST (<?php echo $gst_percent; ?>%)</em></td>
+						<td class="text-center">-</td>
+						<td class="text-center">-</td>
+						<td class="text-center">-</td>
+						<td class="text-center">-</td>
+						<td class="text-center">-</td>
+						<td class="text-right"><strong><?php echo number_format($gst_amount, 2, '.', ''); ?></strong></td>
+					</tr>
+					<?php endif; ?>
 					<tr class="roundoff-row">
 						<td></td>
 						<td><em>Round Off</em></td>
@@ -425,5 +464,20 @@ function printPageArea(areaID){
             background-color: #e5b8b7 !important;
             -webkit-print-color-adjust: exact;
         }
-	}
+        }
 </style>
+
+<script>
+function sendInvoiceViaWhatsApp(mobile, name, invoiceNumber, amount, pdfLink) {
+    if (!mobile) { return; }
+    var digits = String(mobile).replace(/\D/g, '');
+    if (!digits) { return; }
+    if (digits.length > 10) {
+        digits = digits.slice(-10);
+    }
+    var prettyAmount = (parseFloat(amount) || 0).toFixed(2);
+    var text = 'Dear ' + name + ', please find your invoice #' + invoiceNumber + ' for Rs.' + prettyAmount + '. Download: ' + pdfLink;
+    var url = 'https://wa.me/91' + digits + '?text=' + encodeURIComponent(text);
+    window.open(url, '_blank');
+}
+</script>

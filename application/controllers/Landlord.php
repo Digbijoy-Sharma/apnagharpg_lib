@@ -453,6 +453,16 @@ class Landlord extends CI_Controller
 		}
 	}
 
+	function student_documents()
+	{
+		if (!$this->session->userdata('user_type'))
+			redirect(base_url() . 'login', 'refresh');
+
+		$page_data['page_title']	=	'Documents';
+		$page_data['page_name'] 	=	'student_documents';
+		$this->load->view('index', $page_data);
+	}
+
 	function single_month_invoices($year = '', $month = '')
 	{
 		if (!$this->session->userdata('user_type'))
@@ -899,6 +909,7 @@ class Landlord extends CI_Controller
 		if ($param == 'update_twilio') $this->model->update_website_twilio();
 		if ($param == 'delete_twilio') $this->model->delete_website_twilio();
 		if ($param == 'update_gst_certificate') $this->model->update_website_gst_certificate();
+		if ($param == 'update_trade_licence') $this->model->update_website_trade_licence();
 
 		$page_data['page_title']	=	'Website Settings';
 		$page_data['page_name'] 	=	'website_settings';
@@ -1218,5 +1229,206 @@ class Landlord extends CI_Controller
 	{
 		$page_data['year']	=	$year;
 		$this->load->view('utilities_report_to_excel', $page_data);
+	}
+
+	// ===================================================================
+	// NEW REPORTS: Monthly Sales, Monthly Expense, Annual (Financial Year)
+	// ===================================================================
+
+	private function _reports_module_check()
+	{
+		if (!$this->session->userdata('user_type'))
+			redirect(base_url() . 'login', 'refresh');
+
+		if (!in_array($this->db->get_where('module', array('module_name' => 'reports'))->row()->module_id, $this->session->userdata('permissions'))) {
+			$page_data['page_title']	=	'Permission Denied';
+			$page_data['page_name'] 	= 	'permission_denied';
+			$this->load->view('index', $page_data);
+			return false;
+		}
+		return true;
+	}
+
+	// ---------- Monthly Sales Report ----------
+	function monthly_sales_report($month = '', $year = '')
+	{
+		if (!$this->_reports_module_check()) return;
+
+		// Accept value from URL path OR query string (form submission)
+		if ($month === '') $month = (string)$this->input->get('month');
+		if ($year  === '') $year  = (string)$this->input->get('year');
+		$page_data['month'] = $month === '' || $month === null ? date('F') : $month;
+		$page_data['year']  = $year  === '' || $year  === null ? (int)date('Y') : (int)$year;
+		$page_data['navbar_status'] = 'aside-collapsed';
+		$page_data['page_title']    = 'Monthly Sales Report';
+		$page_data['page_name']     = 'monthly_sales_report';
+		$this->load->view('index', $page_data);
+	}
+
+	function download_monthly_sales_report_csv($month = '', $year = '')
+	{
+		if ($month === '') $month = (string)$this->input->get('month');
+		if ($year  === '') $year  = (string)$this->input->get('year');
+		$page_data['month'] = $month === '' || $month === null ? date('F') : $month;
+		$page_data['year']  = $year  === '' || $year  === null ? (int)date('Y') : (int)$year;
+		$this->load->view('monthly_sales_report_to_csv', $page_data);
+	}
+
+	function download_monthly_sales_report_pdf($month = '', $year = '')
+	{
+		if ($month === '') $month = (string)$this->input->get('month');
+		if ($year  === '') $year  = (string)$this->input->get('year');
+		$page_data['month'] = $month === '' || $month === null ? date('F') : $month;
+		$page_data['year']  = $year  === '' || $year  === null ? (int)date('Y') : (int)$year;
+		$this->load->library('pdf');
+		$this->pdf->load_view('monthly_sales_report_to_pdf', $page_data);
+	}
+
+	// ---------- Monthly Purchase/Expense Report ----------
+	function monthly_expense_report($month = '', $year = '')
+	{
+		if (!$this->_reports_module_check()) return;
+
+		if ($month === '') $month = (string)$this->input->get('month');
+		if ($year  === '') $year  = (string)$this->input->get('year');
+		$page_data['month'] = $month === '' || $month === null ? date('F') : $month;
+		$page_data['year']  = $year  === '' || $year  === null ? (int)date('Y') : (int)$year;
+		$page_data['navbar_status'] = 'aside-collapsed';
+		$page_data['page_title']    = 'Monthly Expense Report';
+		$page_data['page_name']     = 'monthly_expense_report';
+		$this->load->view('index', $page_data);
+	}
+
+	function download_monthly_expense_report_csv($month = '', $year = '')
+	{
+		if ($month === '') $month = (string)$this->input->get('month');
+		if ($year  === '') $year  = (string)$this->input->get('year');
+		$page_data['month'] = $month === '' || $month === null ? date('F') : $month;
+		$page_data['year']  = $year  === '' || $year  === null ? (int)date('Y') : (int)$year;
+		$this->load->view('monthly_expense_report_to_csv', $page_data);
+	}
+
+	function download_monthly_expense_report_pdf($month = '', $year = '')
+	{
+		if ($month === '') $month = (string)$this->input->get('month');
+		if ($year  === '') $year  = (string)$this->input->get('year');
+		$page_data['month'] = $month === '' || $month === null ? date('F') : $month;
+		$page_data['year']  = $year  === '' || $year  === null ? (int)date('Y') : (int)$year;
+		$this->load->library('pdf');
+		$this->pdf->load_view('monthly_expense_report_to_pdf', $page_data);
+	}
+
+	// ---------- Annual Report (Indian Financial Year: April to March) ----------
+	function annual_report($fy = '')
+	{
+		if (!$this->_reports_module_check()) return;
+
+		// Accept value from URL path OR query string (form submission)
+		if ($fy === '') $fy = (string)$this->input->get('fy');
+		$page_data['fy'] = $fy === '' || $fy === null ? $this->_infer_current_fy() : $fy;
+		$page_data['navbar_status'] = 'aside-collapsed';
+		$page_data['page_title']    = 'Annual Report (Financial Year)';
+		$page_data['page_name']     = 'annual_report';
+		$this->load->view('index', $page_data);
+	}
+
+	function download_annual_report_pdf($fy = '')
+	{
+		if ($fy === '') $fy = (string)$this->input->get('fy');
+		$page_data['fy'] = $fy === '' || $fy === null ? $this->_infer_current_fy() : $fy;
+		$this->load->library('pdf');
+		$this->pdf->load_view('annual_report_to_pdf', $page_data);
+	}
+
+	// Infer current Indian FY label, e.g. "2025-2026"
+	private function _infer_current_fy()
+	{
+		$cur_month = (int)date('n');
+		$cur_year  = (int)date('Y');
+		if ($cur_month >= 4) {
+			return $cur_year . '-' . ($cur_year + 1);
+		}
+		return ($cur_year - 1) . '-' . $cur_year;
+	}
+
+	// ===================================================================
+	// Staff Training Module (admin / staff only — NOT tenants)
+	// ===================================================================
+
+	private function _training_access_check()
+	{
+		if (!$this->session->userdata('user_type'))
+			redirect(base_url() . 'login', 'refresh');
+
+		// Block tenants (user_type=3). Admin (1) and Staff (2) allowed.
+		if ((int)$this->session->userdata('user_type') === 3) {
+			$page_data['page_title'] = 'Permission Denied';
+			$page_data['page_name']  = 'permission_denied';
+			$this->load->view('index', $page_data);
+			return false;
+		}
+		return true;
+	}
+
+	function staff_training($param1 = '', $param2 = '')
+	{
+		if (!$this->_training_access_check()) return;
+
+		if ($param1 == 'remove' && $param2 != '')            $this->model->remove_training_lesson($param2);
+		elseif ($param1 == 'remove_image' && $param2 != '')  $this->model->remove_training_image($param2);
+
+		$page_data['navbar_status'] = 'aside-collapsed';
+		$page_data['page_title']    = 'Staff Training';
+		$page_data['page_name']     = 'staff_training';
+		$this->load->view('index', $page_data);
+	}
+
+	function add_staff_training()
+	{
+		if (!$this->_training_access_check()) return;
+		if ($this->input->post()) $this->model->add_training_lesson();
+
+		$page_data['navbar_status'] = 'aside-collapsed';
+		$page_data['page_title']    = 'Add Training Lesson';
+		$page_data['page_name']     = 'add_staff_training';
+		$this->load->view('index', $page_data);
+	}
+
+	function edit_staff_training($lesson_id = '')
+	{
+		if (!$this->_training_access_check()) return;
+
+		$lesson_id = (int)$lesson_id;
+		$page_data['lesson'] = $this->db->get_where('training_lesson', array('lesson_id' => $lesson_id))->row();
+		if (!$page_data['lesson']) {
+			$this->session->set_flashdata('warning', 'Training lesson not found.');
+			redirect(base_url() . 'staff_training', 'refresh');
+		}
+		$page_data['lesson_images'] = $this->db->get_where('training_lesson_image', array('lesson_id' => $lesson_id))->result_array();
+
+		if ($this->input->post()) $this->model->update_training_lesson($lesson_id);
+
+		$page_data['navbar_status'] = 'aside-collapsed';
+		$page_data['page_title']    = 'Edit Training Lesson';
+		$page_data['page_name']     = 'edit_staff_training';
+		$this->load->view('index', $page_data);
+	}
+
+	function view_staff_training($lesson_id = '')
+	{
+		if (!$this->_training_access_check()) return;
+
+		$lesson_id = (int)$lesson_id;
+		$page_data['lesson'] = $this->db->get_where('training_lesson', array('lesson_id' => $lesson_id))->row();
+		if (!$page_data['lesson']) {
+			$this->session->set_flashdata('warning', 'Training lesson not found.');
+			redirect(base_url() . 'staff_training', 'refresh');
+		}
+		$page_data['lesson_images'] = $this->db->get_where('training_lesson_image', array('lesson_id' => $lesson_id))->result_array();
+
+		$page_data['navbar_status'] = 'aside-collapsed';
+		$page_data['page_title']    = $page_data['lesson']->title;
+		$page_data['page_name']     = 'view_staff_training';
+		$this->load->view('index', $page_data);
 	}
 }
